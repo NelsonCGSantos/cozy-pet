@@ -377,14 +377,17 @@ class CozyWindow(QWidget):
         # Animation tick (wiggle + sprite cycling)
         self.phase = 0.0
         self.anim = QTimer(self)
+        self.anim_interval = 33  # ~30 FPS
         self.anim.timeout.connect(self.on_anim)
-        self.anim.start(120)  # ~8 FPS vibe
+        self.anim.start(self.anim_interval)
         self.frame_tick = 0
+        self.phase_step = 0.25 * (self.anim_interval / 120.0)
         self.sim = AviarySim()
         self.visual_rng = random.Random()
         self.decor_seed = 0
         self.scene_palette = make_scene_palette(self.visual_rng)
         self._refresh_scene_ornaments()
+        self._sim_ms_accum = 0
 
         # Hover chrome
         self.chrome = TopChrome(self)
@@ -441,9 +444,15 @@ class CozyWindow(QWidget):
         self.chrome.set_target(0.0)
 
     def on_anim(self):
-        self.phase = (self.phase + 0.25) % (2*math.pi)
+        self.phase = (self.phase + self.phase_step) % (2*math.pi)
         self.frame_tick += 1
-        season_reset = self.sim.tick_once()
+        season_reset = False
+        self._sim_ms_accum += self.anim_interval
+        sim_step_ms = 120
+        while self._sim_ms_accum >= sim_step_ms:
+            self._sim_ms_accum -= sim_step_ms
+            if self.sim.tick_once():
+                season_reset = True
         if season_reset:
             self.scene_palette = make_scene_palette(self.visual_rng)
             self._refresh_scene_ornaments()
